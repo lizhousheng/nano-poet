@@ -25,7 +25,10 @@ def build_and_encode() -> None:
 
     data = torch.tensor(tokenizer.encode(text), dtype=torch.long)
     n = int(TRAIN_RATIO * len(data))
-    train, val = data[:n], data[n:]
+    # data[:n] / data[n:] 是 view,与 data 共享底层 storage;
+    # torch.save 对 view 会写入整个 storage,导致 val.pt 翻成 32MB。
+    # .clone() 切断共享,各自只存自己那段。见课程 Notebook 第 6 节坑 1。
+    train, val = data[:n].clone(), data[n:].clone()
 
     TRAIN_DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
     torch.save(train, TRAIN_DATA_FILE)
