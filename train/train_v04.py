@@ -50,9 +50,11 @@ def main() -> None:
     best_val = float('inf')
 
     for step in range(num_steps):
+        # 新增点:每一步先算出当前 lr 并写进 optimizer(取代 v03 的恒定 lr)
         lr = warmup_cosine(step, warmup_steps, num_steps, max_lr, min_lr)
         apply_lr(optimizer, lr)
 
+        # 训练三步曲跟之前完全一样
         x, y = get_batch('train')
         _, loss = model(x, y)
         optimizer.zero_grad(set_to_none=True)

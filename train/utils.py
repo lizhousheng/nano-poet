@@ -99,7 +99,12 @@ def make_get_batch(
 
     def get_batch(split: str) -> tuple[torch.Tensor, torch.Tensor]:
         d = train_data if split == 'train' else val_data
+        # 随机选 batch_size 个起点(留出 block_size+1 的余量,保证 y 取得到)
         ix = torch.randint(len(d) - block_size - 1, (batch_size,))
+        # x 和 y 整体错开一位 —— 这就是"下一个字预测":
+        #   x = d[i   : i+block_size]    输入
+        #   y = d[i+1 : i+1+block_size]  每个位置的"正确下一个字"
+        # 于是 x 第 t 个位置的目标就是 y 的第 t 个位置。
         x = torch.stack([d[i : i + block_size]     for i in ix])
         y = torch.stack([d[i + 1 : i + 1 + block_size] for i in ix])
         return x, y
@@ -113,8 +118,13 @@ def estimate_loss(
     get_batch: Callable[[str], tuple[torch.Tensor, torch.Tensor]],
     eval_iters: int = EVAL_ITERS,
 ) -> dict[str, float]:
+    """跑 eval_iters 个 batch 取 loss 平均,降低单批随机性带来的噪声。
+
+    单个 batch 的 loss 抖动很大,多采几批求均值才能看出 train/val 的真实趋势
+    (val 明显高于 train 就是过拟合的信号)。
+    """
     out = {}
-    model.eval()
+    model.eval()                                 # 关 Dropout,评估要确定性
     for split in ('train', 'val'):
         losses = torch.zeros(eval_iters)
         for k in range(eval_iters):
@@ -122,7 +132,7 @@ def estimate_loss(
             _, loss = model(x, y)
             losses[k] = loss.item()
         out[split] = losses.mean().item()
-    model.train()
+    model.train()                                # 评估完恢复训练模式
     return out
 
 
@@ -138,11 +148,12 @@ def train_loop(
     t0 = time.time()
     for step in range(num_steps):
         x, y = get_batch('train')
-        _, loss = model(x, y)
+        _, loss = model(x, y)                    # 前向:算出预测和 loss
 
-        optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        optimizer.step()
+        # 标准训练三步曲:
+        optimizer.zero_grad(set_to_none=True)    # 1) 清空上一步的梯度
+        loss.backward()                          # 2) 反向传播,算出每个参数的梯度
+        optimizer.step()                         # 3) 按梯度更新参数
 
         if step % eval_interval == 0 or step == num_steps - 1:
             losses = estimate_loss(model, get_batch)

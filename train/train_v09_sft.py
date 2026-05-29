@@ -6,6 +6,23 @@
    后 5 行保留随机初始化 —— 这样旧字的能力一字不丢。
 2. **prompt mask**:loss 只算在答案部分(<|开始|> 之后),prompt 部分置 -100。
 3. **小 lr**:5e-5,比预训练小 6 倍,防止破坏 v0.8 已学好的语言能力。
+
+──────────────────────────────────────────────────────────
+【老师开讲:预训练 vs SFT,到底变了什么?】
+v0.8 之前是"预训练":让模型读海量唐诗宋词,学会"中文长什么样"。但它只会**续写**,
+你说"帮我写首春天的诗",它可能接着你的话往下编,而不是"回答"你。
+
+SFT(Supervised Fine-Tuning,监督微调)就是教它"看到问题→给出回答"这个**对话格式**。
+做法像老师批改"阅读理解":一道题 = 题目(prompt)+ 答案(answer)。
+  · 我们只想训练它"怎么答",不想让它去背"题目"本身;
+  · 所以算 loss 时,**题目部分整段不打分**(代码里把这些位置的标签设成 -100,
+    -100 是 cross_entropy 约定的"忽略"标记),只在答案部分计 loss。
+这就是下面 make_batch 里那段 mask 在做的事。
+
+另外两个细节:扩 5 个特殊 token(像 <|开始|>)要把旧权重原样搬过来别学崩;lr 要很小,
+因为是"微调"不是"重学",动作太大会把 v0.8 的语言功底毁掉。
+(完整讲解见 courses/06_sft_instruction_tuning.ipynb)
+──────────────────────────────────────────────────────────
 """
 import math
 import pickle
@@ -94,20 +111,25 @@ def main() -> None:
     print(f'SFT train: {len(sft_train)}, val: {len(sft_val)}')
 
     def make_batch(pool: list[list[int]]) -> tuple[torch.Tensor, torch.Tensor]:
-        """随机抽 batch,pad 到 max_len,prompt 部分的 y 设为 -100。"""
+        """随机抽 batch,pad 到 max_len,prompt 部分的 y 设为 -100。
+
+        -100 是 cross_entropy 的默认 ignore_index:标成 -100 的位置完全不计入 loss。
+        我们只想教模型"怎么回答",不想让它去背"问题"本身,所以 prompt 部分全设 -100。
+        """
         indices = random.sample(range(len(pool)), cfg.batch_size)
+        # x 默认填 PAD(被忽略的输入),y 默认填 -100(不算 loss)
         x = torch.full((cfg.batch_size, cfg.max_len), PAD_ID, dtype=torch.long)
         y = torch.full((cfg.batch_size, cfg.max_len), -100,   dtype=torch.long)
         for i, idx in enumerate(indices):
             ids = pool[idx][: cfg.max_len]
-            L = len(ids) - 1
-            x[i, :L] = torch.tensor(ids[:-1])
-            y[i, :L] = torch.tensor(ids[1:])
+            L = len(ids) - 1                     # 错一位后有效长度
+            x[i, :L] = torch.tensor(ids[:-1])    # 输入:去掉最后一个
+            y[i, :L] = torch.tensor(ids[1:])     # 目标:去掉第一个(下一个字预测)
             try:
-                start = ids.index(START_ID)
-                y[i, :start] = -100              # prompt 部分不算 loss
+                start = ids.index(START_ID)      # 找到答案起点 <|开始|>
+                y[i, :start] = -100              # 起点之前(=prompt)全部不算 loss
             except ValueError:
-                pass
+                pass                             # 没有 START_ID 就整条都算(容错)
         return x.to(device), y.to(device)
 
     # ===== 5. 优化器 / scaler / TB =====

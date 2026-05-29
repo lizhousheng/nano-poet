@@ -4,6 +4,20 @@
 - AMP (Automatic Mixed Precision):前向用 fp16,反向自动维护 fp32 主权重
 - 梯度裁剪:防止梯度爆炸
 - weight_decay=0.1,betas=(0.9, 0.95):GPT-2 同款 AdamW 配置
+
+──────────────────────────────────────────────────────────
+【老师开讲:AMP 和那个 scaler 到底在防什么?】
+平时算数用 fp32(32 位浮点),精度高但慢、占显存。AMP 改用 fp16(16 位)来算,快一倍、
+省一半显存 —— 代价是 fp16 像一把"刻度粗"的尺子:太小的数会被直接四舍五入成 0(叫"下溢")。
+
+麻烦在于:反向传播算出的**梯度**常常非常小,用 fp16 一量就变成 0,参数就更新不动了。
+GradScaler 的妙招是:先把 loss 乘上一个大倍数(比如 ×1024)再反向 —— 梯度也跟着放大 1024 倍,
+小数变成"量得到"的数;等要更新参数前,再把梯度除回去还原真实大小。一放一收,精度就保住了。
+
+所以下面训练步比 v0.4 多了 scaler 的几行,五步的含义看 forward 循环里的行内注释。
+(注:只有 CUDA 真正开 fp16,其它设备 autocast/scaler 会自动变成"直通",照常跑 fp32。
+ 完整讲解见 courses/03_optim_engineering.ipynb)
+──────────────────────────────────────────────────────────
 """
 import sys
 import time
@@ -80,15 +94,17 @@ def main() -> None:
 
         x, y = get_batch('train')
 
+        # autocast:前向时自动把部分算子用 fp16 跑,更快更省显存(非 CUDA 上是 no-op)
         with autocast_ctx(device):
             _, loss = model(x, y)
 
+        # AMP 的反向比普通版多了 scaler 的几步,目的是防止 fp16 梯度下溢成 0:
         optimizer.zero_grad(set_to_none=True)
-        scaler.scale(loss).backward()
-        scaler.unscale_(optimizer)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-        scaler.step(optimizer)
-        scaler.update()
+        scaler.scale(loss).backward()            # 1) 把 loss 放大再反向,梯度也跟着放大
+        scaler.unscale_(optimizer)               # 2) 裁剪前先把梯度缩放还原回真实大小
+        torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)  # 3) 梯度裁剪防爆炸
+        scaler.step(optimizer)                   # 4) 若梯度无 inf/nan 才真正更新参数
+        scaler.update()                          # 5) 根据这步是否溢出,动态调整缩放倍数
 
         if step % eval_interval == 0 or step == num_steps - 1:
             losses = estimate_loss_amp()

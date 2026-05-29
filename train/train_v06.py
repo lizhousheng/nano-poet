@@ -105,6 +105,7 @@ def main() -> None:
             elapsed = time.time() - t0
 
             tag = ''
+            # best.pt:只在 val 创新低时覆盖 —— 这是"泛化最好"的一版,最终推理用它
             if losses['val'] < best_val:
                 best_val = losses['val']
                 save_checkpoint(
@@ -118,6 +119,7 @@ def main() -> None:
                 f'| val {losses["val"]:.4f} | {elapsed:.1f}s{tag}'
             )
 
+        # latest.pt:每 checkpoint_interval 步无条件覆盖 —— 记录"当前进度",崩了能续训
         if step > 0 and step % checkpoint_interval == 0:
             save_checkpoint(
                 CKPT_DIR_V06 / 'latest.pt',

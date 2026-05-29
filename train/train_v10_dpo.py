@@ -5,6 +5,24 @@
 2. 同样权重深拷贝一份作为 ref_model(冻结)
 3. 用 prepare_dpo.py 生成的 (chosen, rejected) 对计算 DPO loss
 4. 训 500 步即可,lr 极小 (1e-5)
+
+──────────────────────────────────────────────────────────
+【老师开讲:DPO 是在教模型"什么是更好的回答"】
+SFT 教会了模型"怎么答",但答得"好不好"它还没概念 —— 同一个问题,可能有个有礼貌的好答案,
+也有个生硬的坏答案,模型不知道该偏向哪个。
+
+经典做法(RLHF)要先训练一个"评委模型"给答案打分,很重。DPO(Direct Preference Optimization)
+聪明在:**跳过评委**,直接拿成对的数据 (chosen 好答案, rejected 坏答案) 来教 ——
+让模型"把好答案的概率调高一点、把坏答案的概率调低一点",一步到位。
+
+这里有两个模型(看 main 里):
+  · **policy**:正在训练的那个,我们要让它越来越偏好"好答案";
+  · **ref(参考)**:训练开始那一刻的快照,**全程冻结**。它当"锚",防止 policy 为了讨好
+    偏好数据而跑偏、把好不容易练出的语言能力练崩。DPO 比较的是"policy 相对 ref 的变化"。
+
+判断有没有学会,看 acc(选对 chosen 的比例,越接近 1 越好)和 loss(理想 << 0.69)。
+DPO loss 的数学公式见 train/dpo_loss.py;完整讲解见 courses/07_dpo_preference_alignment.ipynb。
+──────────────────────────────────────────────────────────
 """
 import copy
 import math
@@ -40,6 +58,11 @@ CKPT_SFT_BEST = CHECKPOINT_DIR / 'v09_sft' / 'best.pt'
 
 
 def make_dpo_batch(pool, batch_size, max_len, pad_id, device):
+    """抽一批偏好对。每条样本含同一个 prompt 的两种续写:chosen(更好)和 rejected(更差)。
+
+    返回 chosen / rejected 两条序列,以及 plens(prompt 长度,后面算 loss 时
+    要据此跳过 prompt 部分,只比较"答案"的 log-prob)。
+    """
     indices = random.sample(range(len(pool)), batch_size)
     chosen   = torch.full((batch_size, max_len), pad_id, dtype=torch.long)
     rejected = torch.full((batch_size, max_len), pad_id, dtype=torch.long)
@@ -49,7 +72,7 @@ def make_dpo_batch(pool, batch_size, max_len, pad_id, device):
         c, r = p['chosen_ids'][:max_len], p['rejected_ids'][:max_len]
         chosen[i, :len(c)]   = torch.tensor(c)
         rejected[i, :len(r)] = torch.tensor(r)
-        plens.append(min(len(p['prompt_ids']), max_len))
+        plens.append(min(len(p['prompt_ids']), max_len))   # prompt 长度(截断到 max_len)
     return chosen.to(device), rejected.to(device), plens
 
 
@@ -74,10 +97,12 @@ def main() -> None:
     model.load_state_dict(ckpt['model_state'])
 
     # ===== 同权重深拷贝作为冻结 ref =====
+    # ref_model 是"出发点"的快照:DPO 让 policy 在偏好对上变得更好,同时用 ref 当锚,
+    # 惩罚 policy 偏离太远(防止为了讨好偏好而把语言能力练崩)。它不参与训练,永远冻结。
     ref_model = copy.deepcopy(model)
     ref_model.eval()
     for p in ref_model.parameters():
-        p.requires_grad = False
+        p.requires_grad = False                  # 冻结:不算梯度、不更新
     print(f'policy: {sum(p.numel() for p in model.parameters())/1e6:.2f}M')
     print(f'ref:    冻结同结构')
 

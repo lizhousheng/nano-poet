@@ -114,8 +114,11 @@ def main() -> None:
 
     t0 = time.time()
     for local_step in range(num_steps):
+        # local_step:本次运行的第几步(0..num_steps),决定 lr 曲线
+        # global_step:累计总步数(续训时接着上次的 step 往后数),用于日志/checkpoint 记账
         global_step = start_step + local_step
 
+        # 注意 lr 用 local_step:每次 resume 都重新走一遍 warmup→cosine,而不是从曲线尾巴接
         lr = warmup_cosine(local_step, warmup, num_steps, max_lr, min_lr)
         apply_lr(optimizer, lr)
 
