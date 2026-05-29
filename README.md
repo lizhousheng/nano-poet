@@ -1,4 +1,6 @@
-# poetry-llm — 八周从零写 LLM
+# nano-poet — 八周从零写 LLM
+
+> 致敬 [nanoGPT](https://github.com/karpathy/nanoGPT) 的教学型小模型流派,用全唐诗 / 全宋诗 / 宋词当语料,带你从字符级 Bigram 一路走到 QLoRA 微调 Qwen 1.5B。八周课程文件配套全部代码。
 
 从字符级 Bigram 一步步搭到能押韵的小 Transformer,再到 SFT / DPO / QLoRA。
 每一周都有明确的能力跃迁和数字目标。
@@ -125,7 +127,7 @@ uv sync --extra qlora        # 加装 transformers + peft + trl + bitsandbytes +
 source .venv/bin/activate
 ```
 
-激活后命令行提示符前面会有 `(poetry-llm)`,这时候 `python` / `pip` /
+激活后命令行提示符前面会有 `(nano-poet)`,这时候 `python` / `pip` /
 `tensorboard` 全都走项目 venv,跟普通 venv 完全一样。要退出就 `deactivate`。
 
 ### 常用 uv 命令
@@ -179,7 +181,7 @@ python scripts/build_courses_part2.py    # Week 5-8
 ## 完整跑一遍(估计耗时,以 T4 为基准)
 
 **前提**:已经 `uv sync` 装好依赖,并 `.venv\Scripts\Activate.ps1` 激活 venv
-(看到提示符前面有 `(poetry-llm)`)。下面的 `python` 都走项目 venv。
+(看到提示符前面有 `(nano-poet)`)。下面的 `python` 都走项目 venv。
 
 ```powershell
 # ===== 准备 =====

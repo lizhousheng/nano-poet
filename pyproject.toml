@@ -1,7 +1,7 @@
 [project]
-name = "poetry-llm"
+name = "nano-poet"
 version = "0.1.0"
-description = "Eight-week from-scratch LLM course — Tang/Song poetry → Bigram → Transformer → SFT → DPO → QLoRA Qwen"
+description = "Eight-week from-scratch LLM course on Chinese classical poetry — Bigram → Transformer → SFT → DPO → QLoRA Qwen"
 readme = "README.md"
 requires-python = ">=3.10"
 
