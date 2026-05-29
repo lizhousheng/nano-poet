@@ -24,6 +24,7 @@ from model.minigpt_v01 import MiniGPTv01
 from model.minigpt_v02 import MiniGPTv02
 from model.minigpt_v03 import MiniGPTv03
 from tokenizer.tokenizer import CharTokenizer
+from train.utils import get_device
 
 
 def build_model(name: str, vocab_size: int) -> tuple[torch.nn.Module, Path]:
@@ -57,7 +58,7 @@ def main() -> None:
     parser.add_argument('--temperature', type=float, default=1.0)
     args = parser.parse_args()
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = get_device()
     tokenizer = CharTokenizer.load(TOKENIZER_FILE)
 
     model, ckpt_path = build_model(args.model, tokenizer.vocab_size)

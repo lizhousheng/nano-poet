@@ -31,7 +31,7 @@ from configs.config import (
 from model.minigpt_v03 import MiniGPTv03
 from train.checkpoint import save_checkpoint
 from train.dpo_loss import dpo_loss
-from train.utils import get_device
+from train.utils import amp_enabled, get_device
 
 CKPT_DIR_DPO = CHECKPOINT_DIR / 'v10_dpo'
 CKPT_SFT_BEST = CHECKPOINT_DIR / 'v09_sft' / 'best.pt'
@@ -91,7 +91,7 @@ def main() -> None:
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=cfg.lr, weight_decay=0.0, betas=(0.9, 0.95),
     )
-    scaler = GradScaler()
+    scaler = GradScaler(enabled=amp_enabled(device))
 
     def lr_at(step: int) -> float:
         if step < cfg.warmup_steps:

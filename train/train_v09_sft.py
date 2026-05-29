@@ -30,7 +30,7 @@ from configs.config import (
 )
 from model.minigpt_v03 import MiniGPTv03
 from train.checkpoint import load_checkpoint, save_checkpoint
-from train.utils import get_device
+from train.utils import amp_enabled, get_device
 
 CKPT_DIR_SFT  = CHECKPOINT_DIR / 'v09_sft'
 CKPT_V08_BEST = CHECKPOINT_DIR / 'v08' / 'best.pt'
@@ -113,7 +113,7 @@ def main() -> None:
         model.parameters(), lr=cfg.max_lr,
         weight_decay=cfg.weight_decay, betas=(0.9, 0.95),
     )
-    scaler = GradScaler()
+    scaler = GradScaler(enabled=amp_enabled(device))
 
     def lr_at(step: int) -> float:
         if step < cfg.warmup_steps:
@@ -130,7 +130,7 @@ def main() -> None:
             losses: list[float] = []
             for _ in range(eval_iters):
                 x, y = make_batch(pool)
-                with autocast(device_type=device, dtype=torch.float16):
+                with autocast(device_type=device, dtype=torch.float16, enabled=amp_enabled(device)):
                     _, loss = model(x, y)
                 losses.append(loss.item())
             out[split] = sum(losses) / len(losses)
@@ -151,7 +151,7 @@ def main() -> None:
             pg['lr'] = lr
 
         x, y = make_batch(sft_train)
-        with autocast(device_type=device, dtype=torch.float16):
+        with autocast(device_type=device, dtype=torch.float16, enabled=amp_enabled(device)):
             _, loss = model(x, y)
 
         optimizer.zero_grad(set_to_none=True)

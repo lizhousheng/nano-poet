@@ -15,7 +15,33 @@ from configs.config import (
 
 
 def get_device() -> str:
-    return 'cuda' if torch.cuda.is_available() else 'cpu'
+    """挑当前环境能用的最佳设备,返回字符串(可直接喂给 .to() 和 autocast(device_type=...))。
+
+    探测顺序:CUDA -> XPU -> MPS -> CPU。注意:
+    - CUDA 只认 NVIDIA(以及 Linux 上 ROCm 版 torch 的 AMD 卡)。
+    - Intel 独显/新核显走 XPU,但需要装 xpu 版 torch(cu128 版探测不到)。
+    - Apple 芯片走 MPS。
+    - Windows 上的 AMD 卡 / 老 Intel 核显都不在此列,需要 DirectML(torch-directml),
+      它返回的是 device 对象而非字符串、且不支持 AMP,需要单独接入。
+    """
+    if torch.cuda.is_available():                              # NVIDIA,或 Linux ROCm-AMD
+        return 'cuda'
+    if hasattr(torch, 'xpu') and torch.xpu.is_available():      # Intel GPU(需 xpu 版 torch)
+        return 'xpu'
+    mps = getattr(torch.backends, 'mps', None)
+    if mps is not None and mps.is_available():                  # Apple Silicon
+        return 'mps'
+    return 'cpu'
+
+
+def amp_enabled(device: str) -> bool:
+    """混合精度(autocast fp16 + GradScaler)只在 CUDA 上启用。
+
+    其他设备(xpu / mps / cpu)退回 fp32:GradScaler(enabled=False) 变直通,
+    autocast(enabled=False) 不改精度 —— 训练照常跑,只是不省显存、不加速。
+    这样 train_v05~v10 在任何设备上都能正确跑完,而不是在非 CUDA 上崩或静默不更新。
+    """
+    return device == 'cuda'
 
 
 def load_data(device: str) -> tuple[torch.Tensor, torch.Tensor]:

@@ -18,7 +18,7 @@ from configs.config import CHECKPOINT_DIR, MiniGPTv03Cfg, TOKENIZER_FILE
 from model.minigpt_v03 import MiniGPTv03
 from tokenizer.tokenizer import CharTokenizer
 from train.lr_schedule import apply_lr, warmup_cosine
-from train.utils import get_device, load_data, make_get_batch
+from train.utils import amp_enabled, get_device, load_data, make_get_batch
 
 
 def main() -> None:
@@ -47,7 +47,7 @@ def main() -> None:
         model.parameters(),
         lr=max_lr, weight_decay=weight_decay, betas=(0.9, 0.95),
     )
-    scaler = GradScaler()
+    scaler = GradScaler(enabled=amp_enabled(device))
 
     n_params = sum(p.numel() for p in model.parameters())
     print(f'参数量: {n_params / 1e6:.2f}M')
@@ -62,7 +62,7 @@ def main() -> None:
             losses = torch.zeros(eval_iters)
             for k in range(eval_iters):
                 x, y = get_batch(split)
-                with autocast(device_type=device, dtype=torch.float16):
+                with autocast(device_type=device, dtype=torch.float16, enabled=amp_enabled(device)):
                     _, loss = model(x, y)
                 losses[k] = loss.item()
             out[split] = losses.mean().item()
@@ -78,7 +78,7 @@ def main() -> None:
 
         x, y = get_batch('train')
 
-        with autocast(device_type=device, dtype=torch.float16):
+        with autocast(device_type=device, dtype=torch.float16, enabled=amp_enabled(device)):
             _, loss = model(x, y)
 
         optimizer.zero_grad(set_to_none=True)

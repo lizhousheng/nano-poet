@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from configs.config import CHECKPOINT_DIR
 from evaluation.score import score_poem
 from inference.generate_sft import encode_pieces, generate, load_sft_model
+from train.utils import get_device
 
 TEST_CASES = [
     ('春雨', '五言绝句'),
@@ -24,7 +25,7 @@ TEST_CASES = [
 
 
 def main() -> None:
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = get_device()
 
     v09, stoi, itos = load_sft_model(CHECKPOINT_DIR / 'v09_sft' / 'best.pt', device)
     v10, _, _       = load_sft_model(CHECKPOINT_DIR / 'v10_dpo' / 'best.pt', device)

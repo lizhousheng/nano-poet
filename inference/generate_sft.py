@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from configs.config import CHECKPOINT_DIR, TOKENIZER_V3_FILE
 from model.minigpt_v03 import MiniGPTv03
+from train.utils import get_device
 
 CKPT_DEFAULT = CHECKPOINT_DIR / 'v09_sft' / 'best.pt'
 
@@ -108,7 +109,7 @@ def main() -> None:
                         help='跑 4 档 × 3 题 测试套件,忽略 title/style')
     args = parser.parse_args()
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = get_device()
     model, stoi, itos = load_sft_model(args.ckpt, device)
     print(f'模型: {args.ckpt}  (device={device})')
 

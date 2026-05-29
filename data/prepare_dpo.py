@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from configs.config import CHECKPOINT_DIR, DPO_DATA_FILE, DPOCfg, SFT_DATA_FILE, TOKENIZER_V3_FILE
 from evaluation.score import score_poem
 from inference.generate_sft import encode_pieces, generate, load_sft_model
+from train.utils import get_device
 
 N_PROMPTS = 1000
 
@@ -43,7 +44,7 @@ def extract_meta(sample_ids: list[int], stoi, itos):
 
 
 def main() -> None:
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = get_device()
     cfg = DPOCfg
 
     model_sft, stoi, itos = load_sft_model(CHECKPOINT_DIR / 'v09_sft' / 'best.pt', device)
