@@ -1,6 +1,27 @@
 # nano-poet — 八周从零写 LLM
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.1+-ee4c2c.svg)](https://pytorch.org/)
+[![uv](https://img.shields.io/badge/managed%20by-uv-purple.svg)](https://docs.astral.sh/uv/)
+[![Course](https://img.shields.io/badge/Course-8%20Weeks-green.svg)](./courses/)
+
+[English](./README.en.md) · 简体中文
+
 > 致敬 [nanoGPT](https://github.com/karpathy/nanoGPT) 的教学型小模型流派,用全唐诗 / 全宋诗 / 宋词当语料,带你从字符级 Bigram 一路走到 QLoRA 微调 Qwen 1.5B。八周课程文件配套全部代码。
+
+## 效果预览(各版本同一类 prompt)
+
+| Week | 模型 | 输入 | 输出片段 |
+|---|---|---|---|
+| 2 | Bigram (91M 查表) | "月" 起始 | `月、之之、其，之之...`(单字接龙) |
+| 2 | v0.2 单 Block | "月" 起始 | `月度好。芳期恨雲，蓬壺漱楊磨...`(有句式但语义乱) |
+| 2 | v0.3 6 层 | "月" 起始 | `月光透碧簾，輕雲度遠峰。客舟橫水靜，孤雁過天空。`(押韵 + 意境) |
+| 6 | v0.9 SFT | 题目=春雨 / 风格=五绝 | `春雨潤晴川，東風拂柳煙。新苗承露重，遠岫接雲連。` |
+| 7 | v0.10 DPO | 同上 | 押韵更稳、题目相关字出现更多 |
+| 8 | Qwen 1.5B + LoRA | 同上 | `春雨绵绵润万家，柳丝轻拂燕双斜。一犁新水耕烟绿，几树残红傍水涯。`(流畅、用典) |
+
+📈 **val loss 演进**: Bigram 5.43 → v0.3 4.14 → v0.8 4.03 → v0.9 SFT 3.55 → Qwen LoRA(对照商业级)
 
 从字符级 Bigram 一步步搭到能押韵的小 Transformer,再到 SFT / DPO / QLoRA。
 每一周都有明确的能力跃迁和数字目标。
@@ -175,6 +196,119 @@ jupyter notebook courses/
 python scripts/build_courses_part1.py    # Week 1-4
 python scripts/build_courses_part2.py    # Week 5-8
 ```
+
+---
+
+## 在 Colab 上跑(海外推荐,免费 T4)
+
+[Google Colab](https://colab.research.google.com/) 提供免费 T4 GPU(15 GB 显存),
+跑完前 7 周绰绰有余,Week 8 QLoRA 也能跑(2-bit 优化器 + LoRA 在 T4 上够用)。
+
+**完整脚本**(开一个新 Colab notebook,粘贴下面这段):
+
+```python
+# ===== 1. 检查 GPU(必须是 T4 / V100 / A100)=====
+!nvidia-smi --query-gpu=name,memory.total --format=csv
+
+# ===== 2. clone 项目 =====
+!git clone https://github.com/<你的用户名>/nano-poet.git
+%cd nano-poet
+
+# ===== 3. 装依赖(Colab 自带 PyTorch + CUDA,不用 uv,直接 pip)=====
+# Week 1-7 只需基础包
+!pip install -q pypinyin tqdm tensorboard
+
+# Week 8 才装这一行(2 GB,首次 5-10 分钟)
+# !pip install -q transformers>=4.45 accelerate bitsandbytes peft trl datasets
+
+# ===== 4. 挂 Drive(可选,推荐 —— 防止运行时断开权重全丢)=====
+from google.colab import drive
+drive.mount('/content/drive')
+
+# 把 checkpoints/ 软链接到 Drive,这样断电也保住
+!mkdir -p /content/drive/MyDrive/nano-poet
+!rm -rf checkpoints && ln -s /content/drive/MyDrive/nano-poet checkpoints
+
+# ===== 5. 跑数据准备 + Week 2 v0.3 训练 =====
+!python data/prepare.py
+!python train/train_v03.py
+
+# ===== 6. 启动 TensorBoard 看曲线 =====
+%load_ext tensorboard
+%tensorboard --logdir tb_logs
+
+# ===== 7. 写诗 =====
+!python inference/generate.py --model v03 --start 月 --tokens 150
+```
+
+**Colab 上的注意事项**:
+- 免费版**90 分钟无操作会断开** → 长训练前一定挂 Drive 存 checkpoint
+- T4 跑 v0.8(25M)约 40 分钟,v0.9 SFT 约 10 分钟
+- Week 8 Qwen LoRA 在 T4 上勉强能跑,batch_size 必须降到 1,推荐 Pro 版的 V100/A100
+
+## 在 ModelScope 上跑(国内推荐,网速快)
+
+[ModelScope](https://www.modelscope.cn/) 是阿里出的模型社区,提供**免费 GPU 在线 Notebook**
+(A10 24GB / V100 32GB)+ 模型仓库托管。**国内用户访问 GitHub / HuggingFace 慢的话,推荐这个**。
+
+**步骤**:
+
+1. 注册 https://www.modelscope.cn/ → 进入「我的 Notebook」→ 启动 GPU 实例
+   (新用户每周免费 36 小时,够跑完前 5 周)
+
+2. 在 Notebook 里打开终端,执行:
+
+```bash
+# clone 项目(从 GitHub,国内一般能通,慢的话用 https://ghproxy.com/ 代理)
+git clone https://github.com/<你的用户名>/nano-poet.git
+cd nano-poet
+
+# ModelScope 镜像源装包,几秒装完
+pip install -i https://mirrors.aliyun.com/pypi/simple/ pypinyin tqdm tensorboard
+
+# Week 8 才装这一行
+# pip install -i https://mirrors.aliyun.com/pypi/simple/ transformers accelerate bitsandbytes peft trl datasets
+```
+
+3. **Qwen 模型从 ModelScope 拉(比 HuggingFace 快 10×)**:
+
+修改 `qlora/load_qwen.py` 顶部:
+
+```python
+# 原写法 (从 HuggingFace)
+# from transformers import AutoModelForCausalLM
+# MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
+
+# 改成 (从 ModelScope)
+from modelscope import AutoModelForCausalLM, AutoTokenizer
+MODEL_NAME = "qwen/Qwen2.5-1.5B-Instruct"  # 注意是小写 qwen
+```
+
+或者保持 HuggingFace 代码不变,设环境变量让 transformers 走 ModelScope:
+
+```bash
+export HF_ENDPOINT=https://hf-mirror.com  # HuggingFace 镜像,国内可用
+```
+
+4. **训完后把模型推回 ModelScope Hub**(让别人下载用):
+
+```bash
+# 装命令行
+pip install modelscope[framework]
+
+# 登录(在 modelscope.cn 用户中心拿 token)
+modelscope login --token <你的_token>
+
+# 推 LoRA 权重
+modelscope upload \
+  --model_id <你的用户名>/nano-poet-qwen-lora \
+  --local_path checkpoints/qwen_lora_v2
+```
+
+**ModelScope 上的注意事项**:
+- 实例关机后数据**不保留** → 重要文件下载到本地或挂 OSS
+- 跑完 Week 8 别忘了**主动停机**省额度
+- A10 24GB 比 Colab T4 大,Week 8 batch_size 可以开到 4 加速
 
 ---
 
