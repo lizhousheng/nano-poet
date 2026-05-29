@@ -9,10 +9,12 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scripts.setup_device import auto_setup
+auto_setup()  # 缺 GPU 后端时在 import torch 之前自动安装(见 scripts/setup_device.py)
+
 import torch
 from torch.amp import GradScaler
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from configs.config import CHECKPOINT_DIR, MiniGPTv03Cfg, TOKENIZER_FILE
 from model.minigpt_v03 import MiniGPTv03

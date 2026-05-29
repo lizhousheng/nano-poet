@@ -41,3 +41,6 @@ checkpoints/*
 
 # ===== 项目:训练日志 =====
 tb_logs/
+
+# ===== 项目:setup_device 自动安装失败标记(删掉可重试) =====
+.device_setup_attempted
