@@ -8,9 +8,8 @@ DPO 公式:
 """
 import torch
 import torch.nn.functional as F
-from torch.amp import autocast
 
-from train.utils import amp_enabled
+from train.utils import autocast_ctx
 
 
 def compute_logprobs(
@@ -24,7 +23,7 @@ def compute_logprobs(
     用 autocast fp16 forward,gather/log_softmax 升回 fp32 保证数值稳定。
     """
     device = ids.device
-    with autocast(device_type=device.type, dtype=torch.float16, enabled=amp_enabled(device.type)):
+    with autocast_ctx(device):
         logits, _ = model(ids)
 
     logits  = logits[:, :-1, :].float()                       # 错位:logits[t] 预测 ids[t+1]

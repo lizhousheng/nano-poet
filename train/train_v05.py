@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 import torch
-from torch.amp import GradScaler, autocast
+from torch.amp import GradScaler
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -18,7 +18,7 @@ from configs.config import CHECKPOINT_DIR, MiniGPTv03Cfg, TOKENIZER_FILE
 from model.minigpt_v03 import MiniGPTv03
 from tokenizer.tokenizer import CharTokenizer
 from train.lr_schedule import apply_lr, warmup_cosine
-from train.utils import amp_enabled, get_device, load_data, make_get_batch
+from train.utils import amp_enabled, autocast_ctx, get_device, load_data, make_get_batch
 
 
 def main() -> None:
@@ -62,7 +62,7 @@ def main() -> None:
             losses = torch.zeros(eval_iters)
             for k in range(eval_iters):
                 x, y = get_batch(split)
-                with autocast(device_type=device, dtype=torch.float16, enabled=amp_enabled(device)):
+                with autocast_ctx(device):
                     _, loss = model(x, y)
                 losses[k] = loss.item()
             out[split] = losses.mean().item()
@@ -78,7 +78,7 @@ def main() -> None:
 
         x, y = get_batch('train')
 
-        with autocast(device_type=device, dtype=torch.float16, enabled=amp_enabled(device)):
+        with autocast_ctx(device):
             _, loss = model(x, y)
 
         optimizer.zero_grad(set_to_none=True)

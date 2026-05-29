@@ -32,7 +32,7 @@ BATTERY = {
 def load_sft_model(ckpt_path: Path, device: str) -> tuple[MiniGPTv03, dict, dict]:
     with open(TOKENIZER_V3_FILE, 'rb') as f:
         tok = pickle.load(f)
-    ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+    ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
     cfg  = ckpt['config']
     model = MiniGPTv03(
         cfg['vocab_size'], cfg['n_embed'], cfg['n_head'], cfg['n_layer'],

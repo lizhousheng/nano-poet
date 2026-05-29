@@ -3,6 +3,7 @@ import time
 from typing import Callable
 
 import torch
+from torch.amp import autocast
 
 from configs.config import (
     BATCH_SIZE,
@@ -14,15 +15,34 @@ from configs.config import (
 )
 
 
-def get_device() -> str:
-    """挑当前环境能用的最佳设备,返回字符串(可直接喂给 .to() 和 autocast(device_type=...))。
+def _try_directml() -> 'torch.device | None':
+    """装了 torch-directml 且有可用设备就返回它的 device 对象,否则 None。
 
-    探测顺序:CUDA -> XPU -> MPS -> CPU。注意:
+    DirectML 是 Windows 上 AMD 卡 / 老 Intel 核显跑 PyTorch 的唯一通路
+    (CUDA 是 NVIDIA 专属、ROCm 仅 Linux、XPU 仅较新 Intel)。
+    它注册成 'privateuseone' 后端,返回的是 device 对象而非字符串。
+    """
+    try:
+        import torch_directml
+    except ImportError:
+        return None
+    try:
+        if torch_directml.device_count() > 0:
+            return torch_directml.device()
+    except Exception:
+        return None
+    return None
+
+
+def get_device() -> 'str | torch.device':
+    """挑当前环境能用的最佳设备。返回值可直接喂给 .to();autocast 请走 autocast_ctx()。
+
+    探测顺序:CUDA -> XPU -> MPS -> DirectML -> CPU。注意:
     - CUDA 只认 NVIDIA(以及 Linux 上 ROCm 版 torch 的 AMD 卡)。
     - Intel 独显/新核显走 XPU,但需要装 xpu 版 torch(cu128 版探测不到)。
     - Apple 芯片走 MPS。
-    - Windows 上的 AMD 卡 / 老 Intel 核显都不在此列,需要 DirectML(torch-directml),
-      它返回的是 device 对象而非字符串、且不支持 AMP,需要单独接入。
+    - Windows 上的 AMD 卡 / 老 Intel 核显走 DirectML(需 `pip install torch-directml`),
+      返回的是 device 对象(type='privateuseone'),不支持 AMP,只能 fp32。
     """
     if torch.cuda.is_available():                              # NVIDIA,或 Linux ROCm-AMD
         return 'cuda'
@@ -31,17 +51,35 @@ def get_device() -> str:
     mps = getattr(torch.backends, 'mps', None)
     if mps is not None and mps.is_available():                  # Apple Silicon
         return 'mps'
+    dml = _try_directml()                                       # AMD / 老 Intel 核显(Windows)
+    if dml is not None:
+        return dml
     return 'cpu'
 
 
-def amp_enabled(device: str) -> bool:
+def device_type(device: 'str | torch.device') -> str:
+    """取 autocast 用的 device_type 字符串。device 可能是字符串或 torch.device 对象。"""
+    return device if isinstance(device, str) else device.type
+
+
+def amp_enabled(device: 'str | torch.device') -> bool:
     """混合精度(autocast fp16 + GradScaler)只在 CUDA 上启用。
 
-    其他设备(xpu / mps / cpu)退回 fp32:GradScaler(enabled=False) 变直通,
-    autocast(enabled=False) 不改精度 —— 训练照常跑,只是不省显存、不加速。
-    这样 train_v05~v10 在任何设备上都能正确跑完,而不是在非 CUDA 上崩或静默不更新。
+    其他设备(xpu / mps / cpu / DirectML)退回 fp32:GradScaler(enabled=False) 变直通,
+    训练照常跑,只是不省显存、不加速 —— 保证 train_v05~v10 在任何设备上都能正确跑完,
+    而不是在非 CUDA 上崩或静默不更新。
     """
-    return device == 'cuda'
+    return device_type(device) == 'cuda'
+
+
+def autocast_ctx(device: 'str | torch.device', dtype: torch.dtype = torch.float16):
+    """统一的 autocast 上下文:CUDA 上启用 fp16,其余设备 no-op(fp32)。
+
+    关键:不能把 'privateuseone'(DirectML)/'mps' 等不支持 AMP 的 device_type 直接传给
+    autocast —— 即使 enabled=False 也会 AssertionError。所以禁用时统一用 'cpu' 占位。
+    """
+    on = amp_enabled(device)
+    return autocast(device_type='cuda' if on else 'cpu', dtype=dtype, enabled=on)
 
 
 def load_data(device: str) -> tuple[torch.Tensor, torch.Tensor]:

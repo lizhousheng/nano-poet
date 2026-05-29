@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 import torch
-from torch.amp import GradScaler, autocast
+from torch.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -30,7 +30,7 @@ from configs.config import (
 )
 from model.minigpt_v03 import MiniGPTv03
 from train.checkpoint import load_checkpoint, save_checkpoint
-from train.utils import amp_enabled, get_device
+from train.utils import amp_enabled, autocast_ctx, get_device
 
 CKPT_DIR_SFT  = CHECKPOINT_DIR / 'v09_sft'
 CKPT_V08_BEST = CHECKPOINT_DIR / 'v08' / 'best.pt'
@@ -70,7 +70,7 @@ def main() -> None:
 
     # ===== 2. v08 best checkpoint =====
     assert CKPT_V08_BEST.exists(), f'找不到 v08 best,先跑 train_v08.py'
-    ckpt08 = torch.load(CKPT_V08_BEST, map_location=device, weights_only=False)
+    ckpt08 = torch.load(CKPT_V08_BEST, map_location='cpu', weights_only=False)
     config08 = ckpt08['config']
     print(f'v08: {config08["n_embed"]} embed, {config08["n_layer"]} layers')
 
@@ -130,7 +130,7 @@ def main() -> None:
             losses: list[float] = []
             for _ in range(eval_iters):
                 x, y = make_batch(pool)
-                with autocast(device_type=device, dtype=torch.float16, enabled=amp_enabled(device)):
+                with autocast_ctx(device):
                     _, loss = model(x, y)
                 losses.append(loss.item())
             out[split] = sum(losses) / len(losses)
@@ -151,7 +151,7 @@ def main() -> None:
             pg['lr'] = lr
 
         x, y = make_batch(sft_train)
-        with autocast(device_type=device, dtype=torch.float16, enabled=amp_enabled(device)):
+        with autocast_ctx(device):
             _, loss = model(x, y)
 
         optimizer.zero_grad(set_to_none=True)

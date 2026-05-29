@@ -64,7 +64,7 @@ def main() -> None:
     model, ckpt_path = build_model(args.model, tokenizer.vocab_size)
     if not ckpt_path.exists():
         raise FileNotFoundError(f'找不到权重 {ckpt_path},先训练。')
-    model.load_state_dict(torch.load(ckpt_path, map_location=device, weights_only=True))
+    model.load_state_dict(torch.load(ckpt_path, map_location='cpu', weights_only=True))
     model.to(device)
 
     start_ids = torch.tensor([tokenizer.encode(args.start)], dtype=torch.long, device=device)

@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 import torch
-from torch.amp import GradScaler, autocast
+from torch.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -30,7 +30,7 @@ from model.minigpt_v03 import MiniGPTv03
 from tokenizer.tokenizer import CharTokenizer
 from train.checkpoint import save_checkpoint
 from train.lr_schedule import apply_lr, warmup_cosine
-from train.utils import amp_enabled, get_device
+from train.utils import amp_enabled, autocast_ctx, get_device
 
 CKPT_DIR_V08 = CHECKPOINT_DIR / 'v08'
 
@@ -85,7 +85,7 @@ def main() -> None:
             losses = torch.zeros(eval_iters)
             for k in range(eval_iters):
                 x, y = get_batch(split)
-                with autocast(device_type=device, dtype=torch.float16, enabled=amp_enabled(device)):
+                with autocast_ctx(device):
                     _, loss = model(x, y)
                 losses[k] = loss.item()
             out[split] = losses.mean().item()
@@ -100,7 +100,7 @@ def main() -> None:
         apply_lr(optimizer, lr)
 
         x, y = get_batch('train')
-        with autocast(device_type=device, dtype=torch.float16, enabled=amp_enabled(device)):
+        with autocast_ctx(device):
             _, loss = model(x, y)
 
         optimizer.zero_grad(set_to_none=True)

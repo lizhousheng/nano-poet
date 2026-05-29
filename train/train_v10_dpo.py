@@ -62,7 +62,7 @@ def main() -> None:
 
     # ===== 加载 SFT best 作为 policy =====
     assert CKPT_SFT_BEST.exists(), '先跑 train_v09_sft.py'
-    ckpt = torch.load(CKPT_SFT_BEST, map_location=device, weights_only=False)
+    ckpt = torch.load(CKPT_SFT_BEST, map_location='cpu', weights_only=False)
     sft_cfg = ckpt['config']
 
     model = MiniGPTv03(
