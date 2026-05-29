@@ -1,0 +1,43 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+build/
+dist/
+
+# ===== 虚拟环境 / uv =====
+.venv/
+venv/
+ENV/
+
+# ===== Jupyter =====
+.ipynb_checkpoints/
+
+# ===== IDE / OS =====
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+.claude/
+
+# ===== 项目:原始学习 notebook(已整理进 courses/ 和 .py 模块)=====
+/index.ipynb
+/qwen_new.ipynb
+/qwen1.5.ipynb
+/start.ipynb
+/test.ipynb
+
+# ===== 项目:生成的数据(可通过 data/prepare.py 等重建)=====
+data/raw/
+data/processed/
+
+# ===== 项目:模型权重(可重训或下载)=====
+checkpoints/*
+!checkpoints/.gitkeep
+
+# ===== 项目:训练日志 =====
+tb_logs/

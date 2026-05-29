@@ -1,0 +1,40 @@
+[project]
+name = "poetry-llm"
+version = "0.1.0"
+description = "Eight-week from-scratch LLM course — Tang/Song poetry → Bigram → Transformer → SFT → DPO → QLoRA Qwen"
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+    "torch>=2.1",
+    "tensorboard>=2.15",
+    "pypinyin>=0.50",
+    "tqdm>=4.65",
+]
+
+[project.optional-dependencies]
+# Week 8 QLoRA 才需要;其它 Week 不用装
+qlora = [
+    "transformers>=4.45",
+    "accelerate>=0.30",
+    "bitsandbytes>=0.43",
+    "peft>=0.12",
+    "trl>=0.11",
+    "datasets>=2.20",
+]
+
+# ===== uv 配置 =====
+[tool.uv]
+# 这是个 application(本地脚本集),不是要发的库,跳过打包
+package = false
+
+# 给 PyTorch 指定 CUDA wheel 索引。不加这个 uv 会装 CPU 版本。
+# 默认 cu128(PyTorch 2.10+ 对应 CUDA 12.8)。
+# 老卡改 cu124 / cu121 / cu118,纯 CPU 跑就把下面两段删掉。
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu128" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
